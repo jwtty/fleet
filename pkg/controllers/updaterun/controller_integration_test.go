@@ -70,7 +70,7 @@ var _ = Describe("Test the clusterStagedUpdateRun controller", func() {
 	Context("Test reconciling a clusterStagedUpdateRun", func() {
 		It("Should add the finalizer to the clusterStagedUpdateRun", func() {
 			By("Creating a new clusterStagedUpdateRun")
-			updateRun := getTestClusterStagedUpdateRun()
+			updateRun := generateTestClusterStagedUpdateRun()
 			Expect(k8sClient.Create(ctx, updateRun)).Should(Succeed())
 
 			By("Checking the finalizer is added")
@@ -87,7 +87,7 @@ var _ = Describe("Test the clusterStagedUpdateRun controller", func() {
 	Context("Test deleting a clusterStagedUpdateRun", func() {
 		It("Should delete the clusterStagedUpdateRun without any clusterApprovalRequests", func() {
 			By("Creating a new clusterStagedUpdateRun")
-			updateRun := getTestClusterStagedUpdateRun()
+			updateRun := generateTestClusterStagedUpdateRun()
 			Expect(k8sClient.Create(ctx, updateRun)).Should(Succeed())
 
 			By("Checking the finalizer is added")
@@ -102,7 +102,7 @@ var _ = Describe("Test the clusterStagedUpdateRun controller", func() {
 
 		It("Should delete the clusterStagedUpdateRun if it failed", func() {
 			By("Creating a new clusterStagedUpdateRun")
-			updateRun := getTestClusterStagedUpdateRun()
+			updateRun := generateTestClusterStagedUpdateRun()
 			Expect(k8sClient.Create(ctx, updateRun)).Should(Succeed())
 
 			By("Checking the finalizer is added")
@@ -116,7 +116,7 @@ var _ = Describe("Test the clusterStagedUpdateRun controller", func() {
 			Expect(k8sClient.Status().Update(ctx, updateRun)).Should(Succeed(), "failed to update the clusterStagedUpdateRun")
 
 			By("Creating a clusterApprovalRequest")
-			approvalRequest := getTestApprovalRequest("req1")
+			approvalRequest := generateTestApprovalRequest("req1")
 			Expect(k8sClient.Create(ctx, approvalRequest)).Should(Succeed())
 
 			By("Deleting the clusterStagedUpdateRun")
@@ -131,7 +131,7 @@ var _ = Describe("Test the clusterStagedUpdateRun controller", func() {
 
 		It("Should not block deletion though the clusterStagedUpdateRun is still processing", func() {
 			By("Creating a new clusterStagedUpdateRun")
-			updateRun := getTestClusterStagedUpdateRun()
+			updateRun := generateTestClusterStagedUpdateRun()
 			Expect(k8sClient.Create(ctx, updateRun)).Should(Succeed())
 
 			By("Checking the finalizer is added")
@@ -143,7 +143,7 @@ var _ = Describe("Test the clusterStagedUpdateRun controller", func() {
 			Expect(k8sClient.Status().Update(ctx, updateRun)).Should(Succeed(), "failed to add condition to the clusterStagedUpdateRun")
 
 			By("Creating a clusterApprovalRequest")
-			approvalRequest := getTestApprovalRequest("req1")
+			approvalRequest := generateTestApprovalRequest("req1")
 			Expect(k8sClient.Create(ctx, approvalRequest)).Should(Succeed())
 
 			By("Deleting the clusterStagedUpdateRun")
@@ -158,7 +158,7 @@ var _ = Describe("Test the clusterStagedUpdateRun controller", func() {
 
 		It("Should delete all ClusterApprovalRequest objects associated with the clusterStagedUpdateRun", func() {
 			By("Creating a new clusterStagedUpdateRun")
-			updateRun := getTestClusterStagedUpdateRun()
+			updateRun := generateTestClusterStagedUpdateRun()
 			Expect(k8sClient.Create(ctx, updateRun)).Should(Succeed())
 
 			By("Creating ClusterApprovalRequests")
@@ -208,7 +208,7 @@ var _ = Describe("Test the clusterStagedUpdateRun controller", func() {
 	})
 })
 
-func getTestClusterStagedUpdateRun() *placementv1alpha1.ClusterStagedUpdateRun {
+func generateTestClusterStagedUpdateRun() *placementv1alpha1.ClusterStagedUpdateRun {
 	return &placementv1alpha1.ClusterStagedUpdateRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: testUpdateRunName,
@@ -221,7 +221,7 @@ func getTestClusterStagedUpdateRun() *placementv1alpha1.ClusterStagedUpdateRun {
 	}
 }
 
-func getTestClusterResourcePlacement() *placementv1beta1.ClusterResourcePlacement {
+func generateTestClusterResourcePlacement() *placementv1beta1.ClusterResourcePlacement {
 	return &placementv1beta1.ClusterResourcePlacement{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: testCRPName,
@@ -246,7 +246,7 @@ func getTestClusterResourcePlacement() *placementv1beta1.ClusterResourcePlacemen
 	}
 }
 
-func getTestClusterSchedulingPolicySnapshot(idx int) *placementv1beta1.ClusterSchedulingPolicySnapshot {
+func generateTestClusterSchedulingPolicySnapshot(idx int) *placementv1beta1.ClusterSchedulingPolicySnapshot {
 	return &placementv1beta1.ClusterSchedulingPolicySnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf(placementv1beta1.PolicySnapshotNameFmt, testCRPName, idx),
@@ -267,7 +267,7 @@ func getTestClusterSchedulingPolicySnapshot(idx int) *placementv1beta1.ClusterSc
 	}
 }
 
-func getTestClusterResourceBinding(policySnapshotName, targetCluster string) *placementv1beta1.ClusterResourceBinding {
+func generateTestClusterResourceBinding(policySnapshotName, targetCluster string) *placementv1beta1.ClusterResourceBinding {
 	binding := &placementv1beta1.ClusterResourceBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "binding-" + testResourceSnapshotName + "-" + targetCluster,
@@ -284,7 +284,7 @@ func getTestClusterResourceBinding(policySnapshotName, targetCluster string) *pl
 	return binding
 }
 
-func getTestMemberCluster(idx int, clusterName string, labels map[string]string) *clusterv1beta1.MemberCluster {
+func generateTestMemberCluster(idx int, clusterName string, labels map[string]string) *clusterv1beta1.MemberCluster {
 	clusterLabels := make(map[string]string)
 	for k, v := range labels {
 		clusterLabels[k] = v
@@ -306,7 +306,7 @@ func getTestMemberCluster(idx int, clusterName string, labels map[string]string)
 	}
 }
 
-func getTestClusterStagedUpdateStrategy() *placementv1alpha1.ClusterStagedUpdateStrategy {
+func generateTestClusterStagedUpdateStrategy() *placementv1alpha1.ClusterStagedUpdateStrategy {
 	sortingKey := "index"
 	return &placementv1alpha1.ClusterStagedUpdateStrategy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -352,7 +352,7 @@ func getTestClusterStagedUpdateStrategy() *placementv1alpha1.ClusterStagedUpdate
 	}
 }
 
-func getTestClusterResourceSnapshot() *placementv1beta1.ClusterResourceSnapshot {
+func generateTestClusterResourceSnapshot() *placementv1beta1.ClusterResourceSnapshot {
 	clusterResourceSnapshot := &placementv1beta1.ClusterResourceSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: testResourceSnapshotName,
@@ -377,7 +377,7 @@ func getTestClusterResourceSnapshot() *placementv1beta1.ClusterResourceSnapshot 
 	return clusterResourceSnapshot
 }
 
-func getTestClusterResourceOverride() *placementv1alpha1.ClusterResourceOverrideSnapshot {
+func generateTestClusterResourceOverride() *placementv1alpha1.ClusterResourceOverrideSnapshot {
 	return &placementv1alpha1.ClusterResourceOverrideSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: testCROName,
@@ -425,7 +425,7 @@ func getTestClusterResourceOverride() *placementv1alpha1.ClusterResourceOverride
 	}
 }
 
-func getTestApprovalRequest(name string) *placementv1alpha1.ClusterApprovalRequest {
+func generateTestApprovalRequest(name string) *placementv1alpha1.ClusterApprovalRequest {
 	return &placementv1alpha1.ClusterApprovalRequest{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
