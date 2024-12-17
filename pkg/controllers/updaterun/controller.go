@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
@@ -40,10 +41,6 @@ var (
 	// errInitializedFailed is the error when the ClusterStagedUpdateRun fails to initialize.
 	// It is a wrapped error of errStagedUpdatedAborted, because some initialization functions are reused in the validation step.
 	errInitializedFailed = fmt.Errorf("%w: failed to initialize the clusterStagedUpdateRun", errStagedUpdatedAborted)
-
-	// stageUpdatingWaitTime is the time to wait before rechecking the stage update status.
-	// Put it as a variable for convenient testing.
-	stageUpdatingWaitTime = 60 * time.Second
 )
 
 // Reconciler reconciles a ClusterStagedUpdateRun object.
@@ -127,10 +124,29 @@ func (r *Reconciler) Reconcile(ctx context.Context, req runtime.Request) (runtim
 		klog.V(2).InfoS("The clusterStagedUpdateRun is validated", "clusterStagedUpdateRun", runObjRef)
 	}
 
-	// TODO(wantjian): execute the clusterStagedUpdateRun and fix the requeue time.
-	klog.V(2).InfoS("Executing the clusterStagedUpdateRun", "clusterStagedUpdateRun", runObjRef, "updatingStageIndex", updatingStageIndex,
-		"toBeUpdatedBindings count", len(toBeUpdatedBindings), "toBeDeletedBindings count", len(toBeDeletedBindings))
-	return runtime.Result{RequeueAfter: stageUpdatingWaitTime}, nil
+	// The previous run is completed but the update to the status failed.
+	if updatingStageIndex == -1 {
+		klog.V(2).InfoS("The clusterStagedUpdateRun is completed", "clusterStagedUpdateRun", runObjRef)
+		return runtime.Result{}, r.recordUpdateRunSucceeded(ctx, &updateRun)
+	}
+
+	// Execute the updateRun.
+	klog.V(2).InfoS("Continue to execute the clusterStagedUpdateRun", "updatingStageIndex", updatingStageIndex, "clusterStagedUpdateRun", runObjRef)
+	finished, waitTime, execErr := r.execute(ctx, &updateRun, updatingStageIndex, toBeUpdatedBindings, toBeDeletedBindings)
+	if execErr != nil {
+		// errStagedUpdatedAborted cannot be retried.
+		if errors.Is(execErr, errStagedUpdatedAborted) {
+			return runtime.Result{}, r.recordUpdateRunFailed(ctx, &updateRun, execErr.Error())
+		}
+		return runtime.Result{}, execErr
+	}
+	if finished {
+		klog.V(2).InfoS("The clusterStagedUpdateRun is completed", "clusterStagedUpdateRun", runObjRef)
+		return runtime.Result{}, r.recordUpdateRunSucceeded(ctx, &updateRun)
+	}
+	// Retry if the clusterStagedUpdateRun is not finished.
+	klog.V(2).InfoS("The clusterStagedUpdateRun is not finished yet", "requeueWaitTime", waitTime, "clusterStagedUpdateRun", runObjRef)
+	return runtime.Result{RequeueAfter: waitTime}, nil
 }
 
 // handleDelete handles the deletion of the clusterStagedUpdateRun object.
@@ -160,6 +176,39 @@ func (r *Reconciler) ensureFinalizer(ctx context.Context, updateRun *placementv1
 	klog.InfoS("Added the staged update run finalizer", "stagedUpdateRun", klog.KObj(updateRun))
 	controllerutil.AddFinalizer(updateRun, placementv1alpha1.ClusterStagedUpdateRunFinalizer)
 	return r.Update(ctx, updateRun, client.FieldOwner(utils.UpdateRunControllerFieldManagerName))
+}
+
+// recordUpdateRunSucceeded records the succeeded condition in the ClusterStagedUpdateRun status.
+func (r *Reconciler) recordUpdateRunSucceeded(ctx context.Context, updateRun *placementv1alpha1.ClusterStagedUpdateRun) error {
+	meta.SetStatusCondition(&updateRun.Status.Conditions, metav1.Condition{
+		Type:               string(placementv1alpha1.StagedUpdateRunConditionSucceeded),
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: updateRun.Generation,
+		Reason:             condition.UpdateRunSucceededReason,
+	})
+	if updateErr := r.Client.Status().Update(ctx, updateRun); updateErr != nil {
+		klog.ErrorS(updateErr, "Failed to update the ClusterStagedUpdateRun status as succeeded", "clusterStagedUpdateRun", klog.KObj(updateRun))
+		// updateErr can be retried.
+		return controller.NewAPIServerError(false, updateErr)
+	}
+	return nil
+}
+
+// recordUpdateRunFailed records the failed condition in the ClusterStagedUpdateRun status.
+func (r *Reconciler) recordUpdateRunFailed(ctx context.Context, updateRun *placementv1alpha1.ClusterStagedUpdateRun, message string) error {
+	meta.SetStatusCondition(&updateRun.Status.Conditions, metav1.Condition{
+		Type:               string(placementv1alpha1.StagedUpdateRunConditionSucceeded),
+		Status:             metav1.ConditionFalse,
+		ObservedGeneration: updateRun.Generation,
+		Reason:             condition.UpdateRunFailedReason,
+		Message:            message,
+	})
+	if updateErr := r.Client.Status().Update(ctx, updateRun); updateErr != nil {
+		klog.ErrorS(updateErr, "Failed to update the ClusterStagedUpdateRun status as failed", "clusterStagedUpdateRun", klog.KObj(updateRun))
+		// updateErr can be retried.
+		return controller.NewAPIServerError(false, updateErr)
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
