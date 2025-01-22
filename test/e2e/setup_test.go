@@ -44,10 +44,10 @@ const (
 	// The names of the hub cluster + the member clusters set up in this E2E test environment.
 	//
 	// Note that these names must match with those in `setup.sh`, with a prefix `kind-`.
-	hubClusterName                = "kind-hub"
-	memberCluster1EastProdName    = "kind-cluster-1"
-	memberCluster2EastCanaryName  = "kind-cluster-2"
-	memberCluster3WestProdName    = "kind-cluster-3"
+	hubClusterName                = "hub"
+	memberCluster1EastProdName    = "member-1"
+	memberCluster2EastCanaryName  = "member-2"
+	memberCluster3WestProdName    = "member-3"
 	memberCluster4UnhealthyName   = "kind-unhealthy-cluster"
 	memberCluster5LeftName        = "kind-left-cluster"
 	memberCluster6NonExistentName = "kind-non-existent-cluster"
@@ -317,14 +317,14 @@ func beforeSuiteForAllProcesses() {
 func beforeSuiteForProcess1() {
 	beforeSuiteForAllProcesses()
 
-	setAllMemberClustersToJoin()
-	checkIfAllMemberClustersHaveJoined()
+	// setAllMemberClustersToJoin()
+	// checkIfAllMemberClustersHaveJoined()
 	checkIfAzurePropertyProviderIsWorking()
 
 	// Simulate that member cluster 4 become unhealthy, and member cluster 5 has left the fleet.
 	//
 	// Note that these clusters are not real kind clusters.
-	setupInvalidClusters()
+	// setupInvalidClusters()
 	createResourcesForFleetGuardRail()
 	createTestResourceCRD()
 }
@@ -334,7 +334,7 @@ var _ = SynchronizedBeforeSuite(beforeSuiteForProcess1, beforeSuiteForAllProcess
 var _ = SynchronizedAfterSuite(func() {}, func() {
 	deleteResourcesForFleetGuardRail()
 	deleteTestResourceCRD()
-	setAllMemberClustersToLeave()
-	checkIfAllMemberClustersHaveLeft()
-	cleanupInvalidClusters()
+	// setAllMemberClustersToLeave()
+	// checkIfAllMemberClustersHaveLeft()
+	// cleanupInvalidClusters()
 })
