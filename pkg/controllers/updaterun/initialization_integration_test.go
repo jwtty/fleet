@@ -220,30 +220,6 @@ var _ = Describe("Updaterun initialization tests", func() {
 			Expect(k8sClient.Delete(ctx, snapshot2)).Should(Succeed())
 		})
 
-		It("Should fail to initialize if the latest policy snapshot does not have index label", func() {
-			By("Creating scheduling policy snapshot without index label")
-			delete(policySnapshot.Labels, placementv1beta1.PolicyIndexLabel)
-			Expect(k8sClient.Create(ctx, policySnapshot)).To(Succeed())
-
-			By("Creating a new clusterStagedUpdateRun")
-			Expect(k8sClient.Create(ctx, updateRun)).To(Succeed())
-
-			By("Validating the initialization failed")
-			validateFailedInitCondition(ctx, updateRun, "does not have a policy index label")
-		})
-
-		It("Should fail to initialize if the latest policy snapshot has a nil policy", func() {
-			By("Creating scheduling policy snapshot with nil policy")
-			policySnapshot.Spec.Policy = nil
-			Expect(k8sClient.Create(ctx, policySnapshot)).To(Succeed())
-
-			By("Creating a new clusterStagedUpdateRun")
-			Expect(k8sClient.Create(ctx, updateRun)).To(Succeed())
-
-			By("Validating the initialization failed")
-			validateFailedInitCondition(ctx, updateRun, "does not have a policy")
-		})
-
 		It("Should fail to initialize if the latest policy snapshot does not have valid cluster count annotation", func() {
 			By("Creating scheduling policy snapshot with invalid cluster count annotation")
 			delete(policySnapshot.Annotations, placementv1beta1.NumberOfClustersAnnotation)
@@ -289,7 +265,7 @@ var _ = Describe("Updaterun initialization tests", func() {
 					return err
 				}
 				if updateRun.Status.PolicySnapshotIndexUsed != policySnapshot.Labels[placementv1beta1.PolicyIndexLabel] {
-					return fmt.Errorf("updateRun status `PolicySnapshotIndexUsed` mismatch: got %s, want %s", updateRun.Status.PolicySnapshotIndexUsed, policySnapshot.Name)
+					return fmt.Errorf("updateRun status `PolicySnapshotIndexUsed` mismatch: got %s, want %s", updateRun.Status.PolicySnapshotIndexUsed, policySnapshot.Labels[placementv1beta1.PolicyIndexLabel])
 				}
 				if updateRun.Status.PolicyObservedClusterCount != numberOfClustersAnnotation {
 					return fmt.Errorf("updateRun status `PolicyObservedClusterCount` mismatch: got %d, want %d", updateRun.Status.PolicyObservedClusterCount, numberOfClustersAnnotation)
@@ -322,7 +298,7 @@ var _ = Describe("Updaterun initialization tests", func() {
 					return err
 				}
 				if updateRun.Status.PolicySnapshotIndexUsed != policySnapshot.Labels[placementv1beta1.PolicyIndexLabel] {
-					return fmt.Errorf("updateRun status `PolicySnapshotIndexUsed` mismatch: got %s, want %s", updateRun.Status.PolicySnapshotIndexUsed, policySnapshot.Name)
+					return fmt.Errorf("updateRun status `PolicySnapshotIndexUsed` mismatch: got %s, want %s", updateRun.Status.PolicySnapshotIndexUsed, policySnapshot.Labels[placementv1beta1.PolicyIndexLabel])
 				}
 				if updateRun.Status.PolicyObservedClusterCount != 2 {
 					return fmt.Errorf("updateRun status `PolicyObservedClusterCount` mismatch: got %d, want %d", updateRun.Status.PolicyObservedClusterCount, 2)
@@ -354,7 +330,39 @@ var _ = Describe("Updaterun initialization tests", func() {
 					return err
 				}
 				if updateRun.Status.PolicySnapshotIndexUsed != policySnapshot.Labels[placementv1beta1.PolicyIndexLabel] {
-					return fmt.Errorf("updateRun status `PolicySnapshotIndexUsed` mismatch: got %s, want %s", updateRun.Status.PolicySnapshotIndexUsed, policySnapshot.Name)
+					return fmt.Errorf("updateRun status `PolicySnapshotIndexUsed` mismatch: got %s, want %s", updateRun.Status.PolicySnapshotIndexUsed, policySnapshot.Labels[placementv1beta1.PolicyIndexLabel])
+				}
+				if updateRun.Status.PolicyObservedClusterCount != -1 {
+					return fmt.Errorf("updateRun status `PolicyObservedClusterCount` mismatch: got %d, want %d", updateRun.Status.PolicyObservedClusterCount, -1)
+				}
+				return nil
+			}, timeout, interval).Should(Succeed(), "failed to update the updateRun status with policy snapshot details")
+		})
+
+		It("Should copy the latest policy snapshot details to the updateRun status -- nil policy", func() {
+			By("Creating scheduling policy snapshot without policy")
+			policySnapshot.Spec.Policy = nil
+			Expect(k8sClient.Create(ctx, policySnapshot)).To(Succeed())
+
+			By("Setting the latest policy snapshot condition as fully scheduled")
+			meta.SetStatusCondition(&policySnapshot.Status.Conditions, metav1.Condition{
+				Type:               string(placementv1beta1.PolicySnapshotScheduled),
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: policySnapshot.Generation,
+				Reason:             "scheduled",
+			})
+			Expect(k8sClient.Status().Update(ctx, policySnapshot)).Should(Succeed(), "failed to update the policy snapshot condition")
+
+			By("Creating a new clusterStagedUpdateRun")
+			Expect(k8sClient.Create(ctx, updateRun)).To(Succeed())
+
+			By("Validating policy snapshot details are copied to the updateRun status as a default pickAll policy")
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, updateRunNamespacedName, updateRun); err != nil {
+					return err
+				}
+				if updateRun.Status.PolicySnapshotIndexUsed != policySnapshot.Labels[placementv1beta1.PolicyIndexLabel] {
+					return fmt.Errorf("updateRun status `PolicySnapshotIndexUsed` mismatch: got %s, want %s", updateRun.Status.PolicySnapshotIndexUsed, policySnapshot.Labels[placementv1beta1.PolicyIndexLabel])
 				}
 				if updateRun.Status.PolicyObservedClusterCount != -1 {
 					return fmt.Errorf("updateRun status `PolicyObservedClusterCount` mismatch: got %d, want %d", updateRun.Status.PolicyObservedClusterCount, -1)
