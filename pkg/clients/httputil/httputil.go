@@ -9,6 +9,8 @@ package httputil
 import (
 	"net/http"
 	"time"
+
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 )
 
 // Common HTTP constants.
@@ -24,6 +26,13 @@ const (
 	HeaderAcceptKey = "Accept"
 	// HeaderContentTypeJSON is the Content-Type header value for JSON payloads.
 	HeaderContentTypeJSON = "application/json"
+
+	// HeaderAzureSubscriptionTenantIDKey is the HTTP header key for the tenantID of the requested Azure Subscription.
+	// grpc-gateway maps headers with Grpc-Metadata- prefix to grpc metadata after removing it.
+	// See: https://github.com/grpc-ecosystem/grpc-gateway.
+	HeaderAzureSubscriptionTenantIDKey = runtime.MetadataHeaderPrefix + "subscriptionTenantID"
+	// HeaderAzureClientRequestIDKey is the HTTP header key for Azure Client Request ID.
+	HeaderAzureClientRequestIDKey = runtime.MetadataHeaderPrefix + "clientRequestID"
 )
 
 var (

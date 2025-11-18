@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/gofrs/uuid"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	computev1 "go.goms.io/fleet/apis/protos/azure/compute/v1"
@@ -23,6 +25,7 @@ import (
 )
 
 const (
+	tenantIDEnvVarName = "AZURE_TENANT_ID"
 	// recommendationsPathTemplate is the URL path template for VM size recommendations API.
 	recommendationsPathTemplate = "/subscriptions/%s/providers/Microsoft.Compute/locations/%s/vmSizeRecommendations/vmAttributeBased/generate"
 )
@@ -30,6 +33,9 @@ const (
 // AttributeBasedVMSizeRecommenderClient accesses Azure Attribute-Based VM Size Recommender API
 // to provide VM size recommendations based on specified attributes.
 type AttributeBasedVMSizeRecommenderClient struct {
+	// tenantID is the ID of the Azure fleet's tenant.
+	// At the moment, Azure fleet is single-tenant, the fleet and all its members must be in the same tenant.
+	tenantID string
 	// baseURL is the base URL of the http(s) requests to the attribute-based VM size recommender service endpoint.
 	baseURL string
 	// httpClient is the HTTP client used for making requests.
@@ -43,6 +49,10 @@ func NewAttributeBasedVMSizeRecommenderClient(
 	serverAddress string,
 	httpClient *http.Client,
 ) (*AttributeBasedVMSizeRecommenderClient, error) {
+	tenantID := os.Getenv(tenantIDEnvVarName)
+	if tenantID == "" {
+		return nil, fmt.Errorf("failed to get tenantID: environment variable %s is not set", tenantIDEnvVarName)
+	}
 	if len(serverAddress) == 0 {
 		return nil, fmt.Errorf("serverAddress cannot be empty")
 	}
@@ -50,6 +60,7 @@ func NewAttributeBasedVMSizeRecommenderClient(
 		return nil, fmt.Errorf("httpClient cannot be nil")
 	}
 	return &AttributeBasedVMSizeRecommenderClient{
+		tenantID:   tenantID,
 		baseURL:    serverAddress,
 		httpClient: httpClient,
 	}, nil
@@ -96,6 +107,8 @@ func (c *AttributeBasedVMSizeRecommenderClient) GenerateAttributeBasedRecommenda
 	// Set headers
 	httpReq.Header.Set(httputil.HeaderContentTypeKey, httputil.HeaderContentTypeJSON)
 	httpReq.Header.Set(httputil.HeaderAcceptKey, httputil.HeaderContentTypeJSON)
+	httpReq.Header.Set(httputil.HeaderAzureSubscriptionTenantIDKey, c.tenantID)
+	httpReq.Header.Set(httputil.HeaderAzureClientRequestIDKey, uuid.Must(uuid.NewV4()).String())
 
 	// Execute the request
 	resp, err := c.httpClient.Do(httpReq)
