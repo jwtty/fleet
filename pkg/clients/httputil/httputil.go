@@ -24,6 +24,15 @@ const (
 	HeaderAcceptKey = "Accept"
 	// HeaderContentTypeJSON is the Content-Type header value for JSON payloads.
 	HeaderContentTypeJSON = "application/json"
+
+	// HeaderGRPCMetadataPrefix is the prefix for gRPC metadata headers.
+	// grpc-gateway maps headers with this prefix to grpc metadata after removing the prefix.
+	// See: https://github.com/grpc-ecosystem/grpc-gateway.
+	HeaderGRPCMetadataPrefix = "Grpc-Metadata-"
+	// HeaderAzureSubscriptionTenantIDKey is the HTTP header key for the tenantID of the requested Azure Subscription.
+	HeaderAzureSubscriptionTenantIDKey = HeaderGRPCMetadataPrefix + "subscriptionTenantID"
+	// HeaderAzureClientRequestIDKey is the HTTP header key for Azure Client Request ID.
+	HeaderAzureClientRequestIDKey = HeaderGRPCMetadataPrefix + "clientRequestID"
 )
 
 var (
