@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -74,11 +73,7 @@ func TestNewAttributeBasedVMSizeRecommenderClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			original := os.Getenv(tenantIDEnvVarName)
-			_ = os.Setenv(tenantIDEnvVarName, tt.tenantID)
-			defer func() {
-				_ = os.Setenv(tenantIDEnvVarName, original)
-			}()
+			t.Setenv(tenantIDEnvVarName, tt.tenantID)
 			got, gotErr := NewAttributeBasedVMSizeRecommenderClient(tt.serverAddress, tt.httpClient)
 			if (gotErr != nil) != tt.wantErr {
 				t.Errorf("NewAttributeBasedVMSizeRecommenderClient() error = %v, wantErr %v", gotErr, tt.wantErr)
@@ -227,11 +222,7 @@ func TestClient_GenerateAttributeBasedRecommendations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set tenant ID environment variable to create client.
-			original := os.Getenv(tenantIDEnvVarName)
-			_ = os.Setenv(tenantIDEnvVarName, testTenantID)
-			defer func() {
-				_ = os.Setenv(tenantIDEnvVarName, original)
-			}()
+			t.Setenv(tenantIDEnvVarName, testTenantID)
 			// Create mock server.
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Verify request method.

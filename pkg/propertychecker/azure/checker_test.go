@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -431,11 +430,7 @@ func TestCheckIfMeetSKUCapacityRequirement(t *testing.T) {
 			server := createMockAttributeBasedVMSizeRecommenderServer(t, tt.mockStatusCode)
 			defer server.Close()
 
-			original := os.Getenv("AZURE_TENANT_ID")
-			_ = os.Setenv("AZURE_TENANT_ID", "test-tenant-id")
-			defer func() {
-				_ = os.Setenv("AZURE_TENANT_ID", original)
-			}()
+			t.Setenv("AZURE_TENANT_ID", "test-tenant-id")
 			client, err := compute.NewAttributeBasedVMSizeRecommenderClient(server.URL, http.DefaultClient)
 			if err != nil {
 				t.Fatalf("failed to create VM size recommender client: %v", err)
