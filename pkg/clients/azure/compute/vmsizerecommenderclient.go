@@ -14,10 +14,12 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/gofrs/uuid"
 	"google.golang.org/protobuf/encoding/protojson"
+	"k8s.io/klog/v2"
 
 	computev1 "go.goms.io/fleet/apis/protos/azure/compute/v1"
 	"go.goms.io/fleet/pkg/clients/httputil"
@@ -70,7 +72,7 @@ func NewAttributeBasedVMSizeRecommenderClient(
 func (c *AttributeBasedVMSizeRecommenderClient) GenerateAttributeBasedRecommendations(
 	ctx context.Context,
 	req *computev1.GenerateAttributeBasedRecommendationsRequest,
-) (*computev1.GenerateAttributeBasedRecommendationsResponse, error) {
+) (response *computev1.GenerateAttributeBasedRecommendationsResponse, err error) {
 	if req == nil {
 		return nil, controller.NewUnexpectedBehaviorError(errors.New("request cannot be nil"))
 	}
@@ -105,12 +107,23 @@ func (c *AttributeBasedVMSizeRecommenderClient) GenerateAttributeBasedRecommenda
 	}
 
 	// Set headers
+	clientRequestID := uuid.Must(uuid.NewV4()).String()
 	httpReq.Header.Set(httputil.HeaderContentTypeKey, httputil.HeaderContentTypeJSON)
 	httpReq.Header.Set(httputil.HeaderAcceptKey, httputil.HeaderContentTypeJSON)
 	httpReq.Header.Set(httputil.HeaderAzureSubscriptionTenantIDKey, c.tenantID)
-	httpReq.Header.Set(httputil.HeaderAzureClientRequestIDKey, uuid.Must(uuid.NewV4()).String())
+	httpReq.Header.Set(httputil.HeaderAzureClientRequestIDKey, clientRequestID)
 
 	// Execute the request
+	startTime := time.Now()
+	klog.V(2).InfoS("Generating VM size recommendations", "subscriptionID", req.SubscriptionId, "location", req.Location, "clientRequestID", clientRequestID)
+	defer func() {
+		latency := time.Since(startTime).Milliseconds()
+		if err != nil {
+			klog.ErrorS(err, "Failed to generate VM size recommendations", "subscriptionID", req.SubscriptionId, "location", req.Location, "clientRequestID", clientRequestID, "latency", latency)
+		}
+		klog.V(2).InfoS("Generated VM size recommendations", "subscriptionID", req.SubscriptionId, "location", req.Location, "clientRequestID", clientRequestID, "latency", latency)
+	}()
+
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
@@ -129,13 +142,13 @@ func (c *AttributeBasedVMSizeRecommenderClient) GenerateAttributeBasedRecommenda
 	}
 
 	// Unmarshal response using protojson for proper proto3 support
-	var response computev1.GenerateAttributeBasedRecommendationsResponse
+	response = &computev1.GenerateAttributeBasedRecommendationsResponse{}
 	unmarshaler := protojson.UnmarshalOptions{
 		DiscardUnknown: true,
 	}
-	if err := unmarshaler.Unmarshal(respBody, &response); err != nil {
+	if err := unmarshaler.Unmarshal(respBody, response); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	return &response, nil
+	return response, nil
 }
