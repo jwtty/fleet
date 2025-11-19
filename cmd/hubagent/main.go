@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"math"
@@ -43,8 +44,11 @@ import (
 	clusterv1beta1 "go.goms.io/fleet/apis/cluster/v1beta1"
 	placementv1alpha1 "go.goms.io/fleet/apis/placement/v1alpha1"
 	placementv1beta1 "go.goms.io/fleet/apis/placement/v1beta1"
+	computev1 "go.goms.io/fleet/apis/protos/azure/compute/v1"
 	"go.goms.io/fleet/cmd/hubagent/options"
 	"go.goms.io/fleet/cmd/hubagent/workload"
+	"go.goms.io/fleet/pkg/clients/azure/compute"
+	"go.goms.io/fleet/pkg/clients/httputil"
 	mcv1beta1 "go.goms.io/fleet/pkg/controllers/membercluster/v1beta1"
 	"go.goms.io/fleet/pkg/webhook"
 	"go.goms.io/fleet/pkg/webhook/managedresource"
@@ -170,6 +174,39 @@ func main() {
 	}
 
 	// +kubebuilder:scaffold:builder
+
+	var capacityClient *compute.AttributeBasedVMSizeRecommenderClient
+	if endpoint := os.Getenv("CAPACITY_ENDPOINT"); endpoint != "" {
+		capacityClient, err = compute.NewAttributeBasedVMSizeRecommenderClient(endpoint, httputil.DefaultClientForAzure)
+		if err != nil {
+			klog.ErrorS(err, "Error creating Capacity client", "endpoint", endpoint)
+			exitWithErrorFunc()
+		}
+		klog.InfoS("Capacity client created successfully", "endpoint", endpoint, "client", capacityClient)
+
+		req := &computev1.GenerateAttributeBasedRecommendationsRequest{
+			SubscriptionId: "8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8",
+			Location:       "eastus2",
+			RegularPriorityProfile: &computev1.RegularPriorityProfile{
+				TargetCapacity: 4,
+			},
+			ResourceProperties: &computev1.ResourceProperties{
+				VmAttributes: &computev1.VMAttributes{
+					AllowedVmSizes: []string{"Standard_D2s_v3", "Standard_D4s_v3"},
+				},
+			},
+		}
+		klog.InfoS("Sending GenerateAttributeBasedRecommendations request", "request", req)
+		resp, err := capacityClient.GenerateAttributeBasedRecommendations(context.Background(), req)
+		if err != nil {
+			klog.ErrorS(err, "Error generating attribute-based recommendations")
+		} else {
+			klog.InfoS("Received recommendations", "response", resp)
+		}
+	} else {
+		klog.V(2).InfoS("CAPACITY_ENDPOINT not set, skipping capacity client creation")
+		exitWithErrorFunc()
+	}
 
 	wg.Add(1)
 	go func() {
